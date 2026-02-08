@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Currency Converter</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="theme-toggle" id="themeToggle" title="Toggle Dark Mode">
+        <span class="theme-icon">🌙</span>
+    </div>
+
+    <!-- Loading Screen -->
+    <div class="loading-screen" id="loadingScreen">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <h2>Loading Currency Data...</h2>
+            <p>Fetching real-time exchange rates</p>
+        </div>
+    </div>
+
+    <div class="container" id="mainContainer" style="display: none;">
+        <header class="header">
+            <div class="header-content">
+                <h1 class="title">Real-Time Currency Converter</h1>
+                <p class="subtitle">Live exchange rates from around the world</p>
+            </div>
+            <div class="last-updated" id="lastUpdated">
+                <span class="update-icon">🔄</span>
+                <span class="update-text">Ready</span>
+            </div>
+        </header>
+
+        <div class="main-content">
+            <div class="converter-section">
+                <div class="converter-card">
+                    <div class="converter-header">
+                        <h2>Convert Currency</h2>
+                    </div>
+
+                    <div class="converter-body">
+                        <div class="input-group">
+                            <label for="amount">Amount</label>
+                            <input 
+                                type="number" 
+                                id="amount" 
+                                placeholder="Enter amount" 
+                                value="1"
+                                min="0"
+                                step="any"
+                            >
+                        </div>
+
+                        <div class="currency-selector">
+                            <div class="currency-input">
+                                <label for="fromCurrency">From</label>
+                                <div class="search-wrapper">
+                                    <input 
+                                        type="text" 
+                                        id="fromCurrency" 
+                                        placeholder="Search country or currency..."
+                                        autocomplete="off"
+                                    >
+                                    <div class="currency-dropdown" id="fromDropdown"></div>
+                                </div>
+                                <div class="selected-currency" id="fromSelected"></div>
+                            </div>
+
+                            <button class="swap-button" id="swapButton" title="Swap currencies">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M7 16V4M7 4L3 8M7 4L11 8"></path>
+                                    <path d="M17 8V20M17 20L21 16M17 20L13 16"></path>
+                                </svg>
+                            </button>
+
+                            <div class="currency-input">
+                                <label for="toCurrency">To</label>
+                                <div class="search-wrapper">
+                                    <input 
+                                        type="text" 
+                                        id="toCurrency" 
+                                        placeholder="Search country or currency..."
+                                        autocomplete="off"
+                                    >
+                                    <div class="currency-dropdown" id="toDropdown"></div>
+                                </div>
+                                <div class="selected-currency" id="toSelected"></div>
+                            </div>
+                        </div>
+
+                        <button class="convert-button" id="convertButton">
+                            <span>Convert</span>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M5 12H19M19 12L12 5M19 12L12 19"></path>
+                            </svg>
+                        </button>
+
+                        <div class="result-section" id="resultSection" style="display: none;">
+                            <div class="result-amount" id="resultAmount">0.00</div>
+                            <div class="exchange-rate" id="exchangeRate">1 USD = 83.25 INR</div>
+                        </div>
+
+                        <div class="error-message" id="errorMessage" style="display: none;">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" y1="8" x2="12" y2="12"></line>
+                                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                            </svg>
+                            <span id="errorText">An error occurred</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="info-section">
+                <div class="country-card" id="fromCountryCard">
+                    <div class="country-header">
+                        <h3>From Country</h3>
+                    </div>
+                    <div class="country-body">
+                        <div class="country-flag" id="fromFlag">
+                            <div class="placeholder-flag">🌍</div>
+                        </div>
+                        <div class="country-details">
+                            <div class="detail-item">
+                                <span class="detail-label">Country</span>
+                                <span class="detail-value" id="fromCountryName">-</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Capital</span>
+                                <span class="detail-value" id="fromCapital">-</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Leader</span>
+                                <span class="detail-value" id="fromLeader">-</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Currency</span>
+                                <span class="detail-value" id="fromCurrencyName">-</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Continent</span>
+                                <span class="detail-value" id="fromContinent">-</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Population</span>
+                                <span class="detail-value" id="fromPopulation">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="country-card" id="toCountryCard">
+                    <div class="country-header">
+                        <h3>To Country</h3>
+                    </div>
+                    <div class="country-body">
+                        <div class="country-flag" id="toFlag">
+                            <div class="placeholder-flag">🌍</div>
+                        </div>
+                        <div class="country-details">
+                            <div class="detail-item">
+                                <span class="detail-label">Country</span>
+                                <span class="detail-value" id="toCountryName">-</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Capital</span>
+                                <span class="detail-value" id="toCapital">-</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Leader</span>
+                                <span class="detail-value" id="toLeader">-</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Currency</span>
+                                <span class="detail-value" id="toCurrencyName">-</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Continent</span>
+                                <span class="detail-value" id="toContinent">-</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Population</span>
+                                <span class="detail-value" id="toPopulation">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
