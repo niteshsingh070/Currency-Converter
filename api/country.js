@@ -1,6 +1,25 @@
 // Vercel Serverless Function for Country Information
 // This proxies requests to REST Countries API to avoid CORS issues
 
+const https = require('https');
+
+// Helper function to make HTTPS requests
+function httpsGet(url) {
+    return new Promise((resolve, reject) => {
+        https.get(url, (res) => {
+            let data = '';
+            res.on('data', (chunk) => { data += chunk; });
+            res.on('end', () => {
+                try {
+                    resolve({ ok: res.statusCode === 200, data: JSON.parse(data) });
+                } catch (e) {
+                    reject(e);
+                }
+            });
+        }).on('error', reject);
+    });
+}
+
 module.exports = async (req, res) => {
     // Enable CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -22,13 +41,12 @@ module.exports = async (req, res) => {
     }
 
     try {
-        const response = await fetch(`https://restcountries.com/v3.1/alpha/${code}`);
-        const data = await response.json();
+        const result = await httpsGet(`https://restcountries.com/v3.1/alpha/${code}`);
 
-        if (response.ok && data && data.length > 0) {
+        if (result.ok && result.data && result.data.length > 0) {
             return res.status(200).json({
                 success: true,
-                data: data[0]
+                data: result.data[0]
             });
         }
 

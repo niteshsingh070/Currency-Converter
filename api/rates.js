@@ -1,9 +1,28 @@
 // Vercel Serverless Function for Currency Rates
 // This runs on the backend and avoids CORS issues
 
+const https = require('https');
+
 const EXCHANGE_API_KEY = 'c3cc086ab6a41d94c34e6f2a';
 const EXCHANGE_API_URL = `https://v6.exchangerate-api.com/v6/${EXCHANGE_API_KEY}`;
 const BACKUP_API_URL = 'https://api.exchangerate-api.com/v4/latest';
+
+// Helper function to make HTTPS requests
+function httpsGet(url) {
+    return new Promise((resolve, reject) => {
+        https.get(url, (res) => {
+            let data = '';
+            res.on('data', (chunk) => { data += chunk; });
+            res.on('end', () => {
+                try {
+                    resolve({ ok: res.statusCode === 200, data: JSON.parse(data) });
+                } catch (e) {
+                    reject(e);
+                }
+            });
+        }).on('error', reject);
+    });
+}
 
 module.exports = async (req, res) => {
     // Enable CORS
@@ -20,30 +39,29 @@ module.exports = async (req, res) => {
 
     try {
         // Try primary API
-        let response = await fetch(`${EXCHANGE_API_URL}/latest/${base}`);
-        let data = await response.json();
-
-        if (response.ok && data.result === 'success') {
+        const primaryResult = await httpsGet(`${EXCHANGE_API_URL}/latest/${base}`);
+        
+        if (primaryResult.ok && primaryResult.data.result === 'success') {
             return res.status(200).json({
                 success: true,
                 base: base,
-                rates: data.conversion_rates,
-                timestamp: data.time_last_update_utc,
+                rates: primaryResult.data.conversion_rates,
+                timestamp: primaryResult.data.time_last_update_utc,
                 source: 'primary'
             });
         }
 
+
         // Fallback to backup API
         console.log('Primary API failed, trying backup...');
-        response = await fetch(`${BACKUP_API_URL}/${base}`);
-        data = await response.json();
+        const backupResult = await httpsGet(`${BACKUP_API_URL}/${base}`);
 
-        if (data && data.rates) {
+        if (backupResult.ok && backupResult.data && backupResult.data.rates) {
             return res.status(200).json({
                 success: true,
                 base: base,
-                rates: data.rates,
-                timestamp: data.date,
+                rates: backupResult.data.rates,
+                timestamp: backupResult.data.date,
                 source: 'backup'
             });
         }
