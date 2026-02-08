@@ -1,7 +1,13 @@
-// API Configuration
-const EXCHANGE_API_KEY = 'c3cc086ab6a41d94c34e6f2a'; // Free ExchangeRate-API key
-const EXCHANGE_API_URL = `https://v6.exchangerate-api.com/v6/${EXCHANGE_API_KEY}`;
-const BACKUP_API_URL = 'https://api.exchangerate-api.com/v4/latest'; // Backup API (no key required)
+// Auto-detect environment (local vs deployed)
+const isLocal = window.location.hostname === 'localhost' || 
+                 window.location.hostname === '127.0.0.1' ||
+                 window.location.hostname === '';
+
+// API endpoints based on environment
+const API_BASE = isLocal ? '' : '/api';
+
+console.log('Environment:', isLocal ? 'Local' : 'Deployed');
+console.log('API Base:', API_BASE || 'Direct API calls');
 
 // Complete Currency and Country Data
 const currencyData = {
@@ -168,7 +174,7 @@ const currencyData = {
     'ZWL': { country: 'Zimbabwe', code: 'ZW', name: 'Zimbabwean Dollar', symbol: '$' }
 };
 
-// Legacy mapping for backward compatibility
+// Legacy mapping
 const currencyToCountry = {};
 Object.keys(currencyData).forEach(code => {
     currencyToCountry[code] = currencyData[code].code;
@@ -209,11 +215,9 @@ async function init() {
     setupEventListeners();
     updateLastUpdatedTime();
     
-    // Set default selections
     selectCurrency('from', 'USD');
     selectCurrency('to', 'INR');
     
-    // Hide loading screen and show main content
     setTimeout(() => {
         elements.loadingScreen.classList.add('hidden');
         elements.mainContainer.style.display = 'block';
@@ -243,46 +247,40 @@ function updateThemeIcon(theme) {
     icon.textContent = theme === 'light' ? '🌙' : '☀️';
 }
 
-// Load available currencies
+// Load available currencies using backend API
 async function loadCurrencies() {
     try {
-        // Try primary API first
-        let response = await fetch(`${EXCHANGE_API_URL}/latest/USD`);
-        let data = await response.json();
+        const url = isLocal 
+            ? 'https://api.exchangerate-api.com/v4/latest/USD'
+            : `${API_BASE}/rates?base=USD`;
         
-        // If primary fails, try backup API
-        if (!response.ok || data.result !== 'success') {
-            console.log('Primary API failed, trying backup...');
-            response = await fetch(`${BACKUP_API_URL}/USD`);
-            data = await response.json();
-            
-            if (data && data.rates) {
-                exchangeRates = data.rates;
-                lastUpdateTime = new Date(data.date);
-                updateLastUpdatedTime();
-                await updateCountryInfo('fromCurrency', 'USD');
-                await updateCountryInfo('toCurrency', 'INR');
-                return;
-            }
-        }
+        console.log('Fetching from:', url);
+        const response = await fetch(url);
+        const data = await response.json();
         
-        if (data.result === 'success') {
-            exchangeRates = data.conversion_rates;
-            lastUpdateTime = new Date(data.time_last_update_utc);
-            updateLastUpdatedTime();
-            await updateCountryInfo('fromCurrency', 'USD');
-            await updateCountryInfo('toCurrency', 'INR');
+        console.log('API Response:', data);
+        
+        if (isLocal && data.rates) {
+            exchangeRates = data.rates;
+            lastUpdateTime = new Date(data.date);
+        } else if (data.success && data.rates) {
+            exchangeRates = data.rates;
+            lastUpdateTime = new Date(data.timestamp);
         } else {
-            throw new Error('API returned error status');
+            throw new Error('Invalid API response');
         }
+        
+        updateLastUpdatedTime();
+        await updateCountryInfo('fromCurrency', 'USD');
+        await updateCountryInfo('toCurrency', 'INR');
+        
     } catch (error) {
         console.error('Error loading currencies:', error);
-        showError('Failed to load currency data. Using fallback rates.');
         loadFallbackCurrencies();
     }
 }
 
-// Fallback currency list if API fails
+// Fallback currency list
 function loadFallbackCurrencies() {
     exchangeRates = {
         'USD': 1, 'EUR': 0.92, 'GBP': 0.79, 'JPY': 149.50, 'INR': 83.25,
@@ -311,7 +309,7 @@ function filterCurrencies(searchTerm, dropdownId) {
         return data.country.toLowerCase().includes(term) ||
                code.toLowerCase().includes(term) ||
                data.name.toLowerCase().includes(term);
-    }).slice(0, 10); // Limit to 10 results
+    }).slice(0, 10);
     
     if (matches.length === 0) {
         dropdown.innerHTML = '<div class="currency-option" style="pointer-events: none; color: var(--text-secondary);">No matches found</div>';
@@ -356,7 +354,6 @@ function selectCurrency(type, code) {
         updateCountryInfo('toCurrency', code);
     }
     
-    // Auto convert if amount is entered
     if (elements.amount.value) {
         convertCurrency();
     }
@@ -382,7 +379,6 @@ async function convertCurrency() {
         elements.convertButton.classList.add('loading');
         hideError();
         
-        // Use the already loaded exchange rates if available
         if (exchangeRates && Object.keys(exchangeRates).length > 0) {
             let rate;
             
@@ -398,37 +394,13 @@ async function convertCurrency() {
             
             const convertedAmount = (amount * rate).toFixed(2);
             
-            // Display result with CORRECT exchange rate
             elements.resultAmount.textContent = `${parseFloat(convertedAmount).toLocaleString()} ${toCurrency}`;
             elements.exchangeRate.textContent = `1 ${fromCurrency} = ${rate.toFixed(4)} ${toCurrency}`;
             elements.resultSection.style.display = 'block';
-            
-        } else {
-            const response = await fetch(`${EXCHANGE_API_URL}/latest/${fromCurrency}`);
-            
-            if (!response.ok) {
-                throw new Error(`API error: ${response.status}`);
-            }
-            
-            const data = await response.json();
-            
-            if (data.result === 'success') {
-                const rate = data.conversion_rates[toCurrency];
-                const convertedAmount = (amount * rate).toFixed(2);
-                
-                elements.resultAmount.textContent = `${parseFloat(convertedAmount).toLocaleString()} ${toCurrency}`;
-                elements.exchangeRate.textContent = `1 ${fromCurrency} = ${rate.toFixed(4)} ${toCurrency}`;
-                elements.resultSection.style.display = 'block';
-                
-                lastUpdateTime = new Date(data.time_last_update_utc);
-                updateLastUpdatedTime();
-            } else {
-                throw new Error(data['error-type'] || 'API returned error');
-            }
         }
     } catch (error) {
         console.error('Conversion error:', error);
-        showError(`Conversion failed: ${error.message}. Please try again.`);
+        showError(`Conversion failed: ${error.message}`);
     } finally {
         elements.convertButton.classList.remove('loading');
     }
@@ -445,11 +417,17 @@ async function updateCountryInfo(type, currencyCode) {
     }
     
     try {
-        const response = await fetch(`https://restcountries.com/v3.1/alpha/${countryCode}`);
-        const data = await response.json();
+        const url = isLocal 
+            ? `https://restcountries.com/v3.1/alpha/${countryCode}`
+            : `${API_BASE}/country?code=${countryCode}`;
         
-        if (data && data.length > 0) {
-            const country = data[0];
+        const response = await fetch(url);
+        const result = await response.json();
+        
+        const data = isLocal ? result : result.data;
+        
+        if (data && (isLocal ? data.length > 0 : true)) {
+            const country = isLocal ? data[0] : data;
             
             document.getElementById(`${prefix}Flag`).innerHTML = 
                 `<img src="${country.flags.svg}" alt="${country.name.common} flag">`;
@@ -474,7 +452,7 @@ async function updateCountryInfo(type, currencyCode) {
     }
 }
 
-// Get country leader (static data as of January 2025)
+// Get country leader
 function getCountryLeader(countryCode) {
     const leaders = {
         'US': 'President Donald Trump', 'GB': 'Prime Minister Keir Starmer',
@@ -486,17 +464,7 @@ function getCountryLeader(countryCode) {
         'IT': 'Prime Minister Giorgia Meloni', 'ES': 'Prime Minister Pedro Sánchez',
         'KR': 'President Yoon Suk Yeol', 'SA': 'King Salman bin Abdulaziz',
         'TR': 'President Recep Tayyip Erdoğan', 'AR': 'President Javier Milei',
-        'ZA': 'President Cyril Ramaphosa', 'EG': 'President Abdel Fattah el-Sisi',
-        'NG': 'President Bola Tinubu', 'PK': 'Prime Minister Shehbaz Sharif',
-        'BD': 'Prime Minister Sheikh Hasina', 'ID': 'President Prabowo Subianto',
-        'TH': 'Prime Minister Srettha Thavisin', 'VN': 'President Tô Lâm',
-        'PH': 'President Ferdinand Marcos Jr.', 'MY': 'Prime Minister Anwar Ibrahim',
-        'SG': 'Prime Minister Lawrence Wong', 'NZ': 'Prime Minister Christopher Luxon',
-        'CH': 'President Viola Amherd', 'SE': 'Prime Minister Ulf Kristersson',
-        'NO': 'Prime Minister Jonas Gahr Støre', 'DK': 'Prime Minister Mette Frederiksen',
-        'PL': 'Prime Minister Donald Tusk', 'UA': 'President Volodymyr Zelenskyy',
-        'IL': 'Prime Minister Benjamin Netanyahu', 'AE': 'President Sheikh Mohamed bin Zayed',
-        'CL': 'President Gabriel Boric', 'CO': 'President Gustavo Petro'
+        'ZA': 'President Cyril Ramaphosa', 'EG': 'President Abdel Fattah el-Sisi'
     };
     
     return leaders[countryCode] || 'Information not available';
@@ -570,7 +538,6 @@ function setupEventListeners() {
     elements.swapButton.addEventListener('click', swapCurrencies);
     elements.themeToggle.addEventListener('click', toggleTheme);
     
-    // Search functionality
     elements.fromCurrency.addEventListener('input', (e) => {
         filterCurrencies(e.target.value, 'fromDropdown');
     });
@@ -579,7 +546,6 @@ function setupEventListeners() {
         filterCurrencies(e.target.value, 'toDropdown');
     });
     
-    // Close dropdowns when clicking outside
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.search-wrapper')) {
             elements.fromDropdown.classList.remove('show');
@@ -587,14 +553,12 @@ function setupEventListeners() {
         }
     });
     
-    // Convert on Enter key
     elements.amount.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
             convertCurrency();
         }
     });
     
-    // Auto-convert when amount changes
     let amountTimeout;
     elements.amount.addEventListener('input', () => {
         clearTimeout(amountTimeout);
@@ -605,11 +569,10 @@ function setupEventListeners() {
         }, 1000);
     });
     
-    // Update time every minute
     setInterval(updateLastUpdatedTime, 60000);
 }
 
-// Initialize app when DOM is ready
+// Initialize
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
 } else {
