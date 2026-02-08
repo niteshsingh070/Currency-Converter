@@ -1,30 +1,7 @@
-// Vercel Serverless Function for Currency Rates
-// This runs on the backend and avoids CORS issues
-
-const https = require('https');
-
+// api/rates.js - Vercel Serverless Function
 const EXCHANGE_API_KEY = 'c3cc086ab6a41d94c34e6f2a';
-const EXCHANGE_API_URL = `https://v6.exchangerate-api.com/v6/${EXCHANGE_API_KEY}`;
-const BACKUP_API_URL = 'https://api.exchangerate-api.com/v4/latest';
 
-// Helper function to make HTTPS requests
-function httpsGet(url) {
-    return new Promise((resolve, reject) => {
-        https.get(url, (res) => {
-            let data = '';
-            res.on('data', (chunk) => { data += chunk; });
-            res.on('end', () => {
-                try {
-                    resolve({ ok: res.statusCode === 200, data: JSON.parse(data) });
-                } catch (e) {
-                    reject(e);
-                }
-            });
-        }).on('error', reject);
-    });
-}
-
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
     // Enable CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -39,29 +16,32 @@ module.exports = async (req, res) => {
 
     try {
         // Try primary API
-        const primaryResult = await httpsGet(`${EXCHANGE_API_URL}/latest/${base}`);
-        
-        if (primaryResult.ok && primaryResult.data.result === 'success') {
+        const primaryUrl = `https://v6.exchangerate-api.com/v6/${EXCHANGE_API_KEY}/latest/${base}`;
+        let response = await fetch(primaryUrl);
+        let data = await response.json();
+
+        if (response.ok && data.result === 'success') {
             return res.status(200).json({
                 success: true,
                 base: base,
-                rates: primaryResult.data.conversion_rates,
-                timestamp: primaryResult.data.time_last_update_utc,
+                rates: data.conversion_rates,
+                timestamp: data.time_last_update_utc,
                 source: 'primary'
             });
         }
 
-
         // Fallback to backup API
         console.log('Primary API failed, trying backup...');
-        const backupResult = await httpsGet(`${BACKUP_API_URL}/${base}`);
+        const backupUrl = `https://api.exchangerate-api.com/v4/latest/${base}`;
+        response = await fetch(backupUrl);
+        data = await response.json();
 
-        if (backupResult.ok && backupResult.data && backupResult.data.rates) {
+        if (data && data.rates) {
             return res.status(200).json({
                 success: true,
                 base: base,
-                rates: backupResult.data.rates,
-                timestamp: backupResult.data.date,
+                rates: data.rates,
+                timestamp: data.date,
                 source: 'backup'
             });
         }
@@ -107,4 +87,4 @@ module.exports = async (req, res) => {
             message: 'Using cached rates - Network error'
         });
     }
-};
+}
